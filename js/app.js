@@ -496,7 +496,7 @@ async function plantForm(plantId, especeId) {
   <form id="pf" class="filters" style="flex-direction:column;align-items:stretch">
     <label class="field">Espèce<select name="especeId"><option value="">Autre (pas dans la liste)</option>${opts}</select></label>
     <label class="field" id="libre">Nom de l'espèce si autre<input type="text" name="especeLibre" value="${esc(p.especeLibre || '')}"></label>
-    <label class="field">Petit nom<input type="text" name="nom" required value="${esc(p.nom || '')}" placeholder="ex. Le grand monstera du salon"></label>
+    <label class="field">Petit nom<input type="text" name="nom" value="${esc(p.nom || '')}" placeholder="ex. Le grand monstera du salon"></label>
     <label class="field">Pièce<input type="text" name="piece" list="rooms" value="${esc(p.piece || '')}" placeholder="Salon, chambre, cuisine..."><datalist id="rooms"><option>Salon</option><option>Chambre</option><option>Cuisine</option><option>Salle de bain</option><option>Bureau</option><option>Entrée</option><option>Balcon</option></datalist></label>
     <div class="row"><label class="field" style="flex:1">Fenêtre la plus proche<select name="expo">${Object.entries(EXPO).map(([k, v]) => `<option value="${k}" ${p.expo === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
     <label class="field" style="flex:1">Distance à la fenêtre<select name="dist">${Object.entries(DIST).map(([k, v]) => `<option value="${k}" ${p.dist === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label></div>
