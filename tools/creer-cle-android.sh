@@ -2,6 +2,7 @@
 # Crée la clé de signature de l'APK (une seule fois), la range dans _secrets
 # et la transmet à GitHub sous forme de secrets. Rien n'est affiché ni commité.
 set -euo pipefail
+export MSYS_NO_PATHCONV=1  # Git Bash : ne pas convertir "/CN=..." en chemin
 S="$HOME/Documents/IA/_secrets/plantes"; REPO="aliciaarnd-ui/plantes"
 mkdir -p "$S"; cd "$S"
 if [ ! -f herbier-release.p12 ]; then
