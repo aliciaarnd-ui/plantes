@@ -1,0 +1,62 @@
+name: Application Android (APK)
+on:
+  push:
+    branches: [master]
+    paths: ['index.html', 'styles.css', 'js/**', 'data/**', 'icons/**', 'package*.json', 'capacitor.config.json', '.github/workflows/apk.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: apk
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Préparer les fichiers web
+        run: mkdir -p www && cp -r index.html styles.css manifest.json sw.js js data icons www/
+      - name: Projet Android
+        run: |
+          npm ci
+          npx cap add android
+          RES=android/app/src/main/res
+          rm -rf $RES/mipmap-anydpi-v26
+          for d in $RES/mipmap-*; do
+            cp icons/icon-192.png $d/ic_launcher.png
+            cp icons/icon-192.png $d/ic_launcher_round.png
+          done
+          sed -i "s/versionCode 1$/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.${{ github.run_number }}\"/" android/app/build.gradle
+          grep -E 'versionCode|versionName' android/app/build.gradle
+          npx cap sync android
+      - name: Compiler
+        run: cd android && ./gradlew assembleRelease --no-daemon
+      - name: Vérifier la clé de signature
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KS_B64" ]; then echo "::error::Clé absente : lancer tools/creer-cle-android.sh sur le PC"; exit 1; fi
+      - name: Signer
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+        run: |
+          echo "$KS_B64" | base64 -d > ks.p12
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          $BT/zipalign -p -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
+          $BT/apksigner sign --ks ks.p12 --ks-type PKCS12 --ks-pass env:KS_PASS --out herbier.apk aligned.apk
+          $BT/apksigner verify herbier.apk
+          rm ks.p12
+      - name: Publier
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view android >/dev/null 2>&1 || gh release create android --title "Application Android" --notes "Dernière version de l'APK Herbier. Sur le téléphone : télécharger herbier.apk, l'ouvrir et autoriser l'installation."
+          gh release upload android herbier.apk --clobber

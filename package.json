@@ -1,0 +1,13 @@
+{
+  "name": "herbier",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Herbier : application Android (Capacitor) construite par GitHub Actions",
+  "dependencies": {
+    "@capacitor/android": "8.6.0",
+    "@capacitor/cli": "8.6.0",
+    "@capacitor/core": "8.6.0",
+    "@capacitor/filesystem": "8.1.5",
+    "@capacitor/share": "8.0.3"
+  }
+}

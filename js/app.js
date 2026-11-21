@@ -23,6 +23,8 @@ const daysBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000)
 const addDays = (iso, n) => { const d = new Date(iso); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 const fmtDate = iso => iso ? new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
 const isSummer = (m = NOW_M()) => m >= 4 && m <= 9;
+const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const APK_URL = 'https://github.com/aliciaarnd-ui/plantes/releases/latest/download/herbier.apk';
 
 /* Réglages (confort, par appareil) */
 const settings = (() => {
@@ -816,15 +818,26 @@ async function reglages() {
     <select id="clim">${Object.entries(CLIMATS).map(([k, v]) => `<option value="${k}" ${k === settings.get('climat') ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
   <div class="card" style="margin-top:14px"><h3>Sauvegarde</h3>
     <p>${plants.length} plante(s) et ${photos.length} photo(s) enregistrées sur cet appareil uniquement. Exportez régulièrement un fichier de sauvegarde, il permet aussi de passer d'un appareil à l'autre.</p>
+    ${NATIVE ? '<p class="small muted">L\'export ouvre le menu de partage : enregistrez le fichier dans Drive, Fichiers ou envoyez-le vous par mail.</p>' : ''}
     <div class="row"><button class="btn primary" id="exp">Exporter mes données</button><label class="btn" style="cursor:pointer">Importer une sauvegarde<input type="file" accept="application/json,.json" id="imp" hidden></label></div></div>
+  ${NATIVE ? '' : `<div class="card" style="margin-top:14px"><h3>Sur téléphone</h3><p>Application Android : <a href="${APK_URL}">télécharger herbier.apk</a>, l'ouvrir puis autoriser l'installation depuis le navigateur. Sur iPhone : ouvrir ce site dans Safari, Partager, puis « Sur l'écran d'accueil ».</p><p class="small muted">L'appli et le site ont chacun leurs propres données : passez de l'un à l'autre avec Exporter puis Importer.</p></div>`}
   <div class="card" style="margin-top:14px"><h3>À propos des données</h3><p class="small">Fiches rédigées à partir de sources botaniques, d'herboristerie et de jardinage (citées en bas de chaque fiche). Elles ne remplacent ni un avis médical, ni la vérification sur le terrain par une personne compétente.</p>
     <p class="small muted">${SAUV.length} plantes sauvages, ${ARO.length} aromatiques, ${INT.length} plantes d'intérieur, ${AST.length} astuces, ${SYM.length} symptômes.</p></div>`;
   $('#clim').addEventListener('change', e => { settings.set('climat', e.target.value); toast('Climat enregistré'); });
   $('#exp').addEventListener('click', async () => {
     const data = { app: 'herbier', version: 1, date: new Date().toISOString(), plants: await DB.all('plants'), photos: [] };
     for (const p of await DB.all('photos')) data.photos.push({ ...p, blob: await blobToData(p.blob) });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
-    a.download = `herbier-sauvegarde-${today()}.json`; a.click(); toast('Sauvegarde téléchargée');
+    const name = `herbier-sauvegarde-${today()}.json`; const json = JSON.stringify(data);
+    if (NATIVE) {
+      try {
+        const { Filesystem, Share } = window.Capacitor.Plugins;
+        const r = await Filesystem.writeFile({ path: name, data: json, directory: 'CACHE', encoding: 'utf8' });
+        await Share.share({ title: 'Sauvegarde Herbier', files: [r.uri] });
+      } catch (err) { if (!/cancel/i.test(err.message || '')) toast('Export impossible : ' + err.message); }
+      return;
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    a.download = name; a.click(); toast('Sauvegarde téléchargée');
   });
   $('#imp').addEventListener('change', async e => {
     const f = e.target.files[0]; if (!f) return;

@@ -4,3 +4,8 @@ node_modules/
 *.pass
 password.txt
 _backup*.json
+www/
+android/
+*.keystore
+*.p12
+*.jks
