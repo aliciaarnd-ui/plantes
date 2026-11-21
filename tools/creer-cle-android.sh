@@ -6,7 +6,7 @@ export MSYS_NO_PATHCONV=1  # Git Bash : ne pas convertir "/CN=..." en chemin
 S="$HOME/Documents/IA/_secrets/plantes"; REPO="aliciaarnd-ui/plantes"
 mkdir -p "$S"; cd "$S"
 if [ ! -f herbier-release.p12 ]; then
-  openssl rand -base64 24 | tr -d '/+=\n' > herbier-release.pass
+  openssl rand -base64 24 | tr -d '/+=\r\n' > herbier-release.pass
   openssl req -x509 -newkey rsa:3072 -nodes -keyout k.pem -out c.pem -days 10000 -subj "/CN=Herbier" 2>/dev/null
   openssl pkcs12 -export -inkey k.pem -in c.pem -name herbier -out herbier-release.p12 \
     -passout file:herbier-release.pass -keypbe AES-256-CBC -certpbe AES-256-CBC -macalg sha256
