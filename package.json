@@ -2,7 +2,7 @@
   "name": "herbier",
   "private": true,
   "version": "1.0.0",
-  "description": "Herbier : application Android (Capacitor) construite par GitHub Actions",
+  "description": "Lilipousse : application Android (Capacitor) construite par GitHub Actions",
   "dependencies": {
     "@capacitor/android": "8.6.0",
     "@capacitor/cli": "8.6.0",

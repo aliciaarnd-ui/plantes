@@ -51,12 +51,12 @@ jobs:
           echo "$KS_B64" | base64 -d > ks.p12
           BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
           $BT/zipalign -p -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
-          $BT/apksigner sign --ks ks.p12 --ks-type PKCS12 --ks-pass env:KS_PASS --out herbier.apk aligned.apk
-          $BT/apksigner verify herbier.apk
+          $BT/apksigner sign --ks ks.p12 --ks-type PKCS12 --ks-pass env:KS_PASS --out lilipousse.apk aligned.apk
+          $BT/apksigner verify lilipousse.apk
           rm ks.p12
       - name: Publier
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view android >/dev/null 2>&1 || gh release create android --title "Application Android" --notes "Dernière version de l'APK Herbier. Sur le téléphone : télécharger herbier.apk, l'ouvrir et autoriser l'installation."
-          gh release upload android herbier.apk --clobber
+          gh release view android >/dev/null 2>&1 || gh release create android --title "Application Android" --notes "Dernière version de l'APK Lilipousse. Sur le téléphone : télécharger lilipousse.apk, l'ouvrir et autoriser l'installation."
+          gh release upload android lilipousse.apk --clobber

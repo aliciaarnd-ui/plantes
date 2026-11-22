@@ -1,4 +1,4 @@
-/* Herbier : application de connaissance et de soin des plantes. Tout fonctionne hors ligne, données perso en local. */
+/* Lilipousse : application de connaissance et de soin des plantes. Tout fonctionne hors ligne, données perso en local. */
 (() => {
 'use strict';
 
@@ -24,7 +24,7 @@ const addDays = (iso, n) => { const d = new Date(iso); d.setDate(d.getDate() + n
 const fmtDate = iso => iso ? new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
 const isSummer = (m = NOW_M()) => m >= 4 && m <= 9;
 const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-const APK_URL = 'https://github.com/aliciaarnd-ui/plantes/releases/latest/download/herbier.apk';
+const APK_URL = 'https://github.com/aliciaarnd-ui/plantes/releases/latest/download/lilipousse.apk';
 
 /* Réglages (confort, par appareil) */
 const settings = (() => {
@@ -978,7 +978,7 @@ async function reglages() {
     <p>${plants.length} plante(s) et ${photos.length} photo(s) enregistrées sur cet appareil uniquement. Exportez régulièrement un fichier de sauvegarde, il permet aussi de passer d'un appareil à l'autre.</p>
     ${NATIVE ? '<p class="small muted">L\'export ouvre le menu de partage : enregistrez le fichier dans Drive, Fichiers ou envoyez-le vous par mail.</p>' : ''}
     <div class="row"><button class="btn primary" id="exp">Exporter mes données</button><label class="btn" style="cursor:pointer">Importer une sauvegarde<input type="file" accept="application/json,.json" id="imp" hidden></label></div></div>
-  ${NATIVE ? '' : `<div class="card" style="margin-top:14px"><h3>Sur téléphone</h3><p>Application Android : <a href="${APK_URL}">télécharger herbier.apk</a>, l'ouvrir puis autoriser l'installation depuis le navigateur. Sur iPhone : ouvrir ce site dans Safari, Partager, puis « Sur l'écran d'accueil ».</p><p class="small muted">L'appli et le site ont chacun leurs propres données : passez de l'un à l'autre avec Exporter puis Importer.</p></div>`}
+  ${NATIVE ? '' : `<div class="card" style="margin-top:14px"><h3>Sur téléphone</h3><p>Application Android : <a href="${APK_URL}">télécharger lilipousse.apk</a>, l'ouvrir puis autoriser l'installation depuis le navigateur. Sur iPhone : ouvrir ce site dans Safari, Partager, puis « Sur l'écran d'accueil ».</p><p class="small muted">L'appli et le site ont chacun leurs propres données : passez de l'un à l'autre avec Exporter puis Importer.</p></div>`}
   <div class="card" style="margin-top:14px"><h3>À propos des données</h3><p class="small">Fiches rédigées à partir de sources botaniques, d'herboristerie et de jardinage (citées en bas de chaque fiche). Elles ne remplacent ni un avis médical, ni la vérification sur le terrain par une personne compétente.</p>
     <p class="small muted">${SAUV.length} plantes sauvages, ${ARO.length} aromatiques, ${INT.length} plantes d'intérieur, ${AST.length} astuces, ${SYM.length} symptômes.</p></div>`;
   $('#pnks').addEventListener('click', () => { settings.set('plantnetKey', $('#pnk').value.trim()); toast('Clé enregistrée'); });
@@ -986,12 +986,12 @@ async function reglages() {
   $('#exp').addEventListener('click', async () => {
     const data = { app: 'herbier', version: 1, date: new Date().toISOString(), plants: await DB.all('plants'), photos: [] };
     for (const p of await DB.all('photos')) data.photos.push({ ...p, blob: await blobToData(p.blob) });
-    const name = `herbier-sauvegarde-${today()}.json`; const json = JSON.stringify(data);
+    const name = `lilipousse-sauvegarde-${today()}.json`; const json = JSON.stringify(data);
     if (NATIVE) {
       try {
         const { Filesystem, Share } = window.Capacitor.Plugins;
         const r = await Filesystem.writeFile({ path: name, data: json, directory: 'CACHE', encoding: 'utf8' });
-        await Share.share({ title: 'Sauvegarde Herbier', files: [r.uri] });
+        await Share.share({ title: 'Sauvegarde Lilipousse', files: [r.uri] });
       } catch (err) { if (!/cancel/i.test(err.message || '')) toast('Export impossible : ' + err.message); }
       return;
     }

@@ -1,4 +1,4 @@
-# Herbier
+# Lilipousse
 
 Application web installable (PWA) pour apprendre à connaître les plantes :
 
