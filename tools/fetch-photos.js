@@ -17,7 +17,7 @@ try { global.window.PHOTOS = undefined; require(OUT); photos = global.window.PHO
 const key = s => String(s || '').toLowerCase().replace(/[×]/g, 'x').trim();
 function names(latin) {
   // "Tilia cordata, Tilia platyphyllos" / "Goeppertia spp. (ex Calathea)" / "Dracaena trifasciata (syn. ...)"
-  return String(latin || '').replace(/\(.*?\)/g, '').split(/,| et | ou |\//).map(s => s.trim())
+  return String(latin || '').replace(/×\s*/g, '').replace(/\(.*?\)/g, '').split(/,| et | ou |\//).map(s => s.trim())
     .map(s => s.replace(/\b(spp?|subsp|var|cf)\.?.*$/i, '').replace(/['"‘’].*$/, '').trim())
     .filter(Boolean).map(s => s.split(/\s+/).slice(0, 2).join(' ')).filter(s => /^[A-Z][a-z-]+( [a-z-]+)?$/.test(s));
 }
@@ -42,7 +42,10 @@ const OK_LIC = /^(cc0|cc-by|cc-by-sa|cc-by-nc|cc-by-nc-sa|cc-by-nd|cc-by-nc-nd)$
 async function inat(name) {
   const s = await getJSON(`https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(name)}&per_page=10&is_active=true`);
   await sleep(1100);
-  const t = s && s.results && s.results.find(x => key(x.name) === key(name));
+  // Comparaison tolérante : ignore le signe d'hybride (Citrus × limon) et accepte un synonyme (matched_term)
+  const k2 = s2 => String(s2 || '').toLowerCase().replace(/×\s*/g, '').replace(/\s+/g, ' ').trim();
+  const t = s && s.results && (s.results.find(x => k2(x.name) === k2(name))
+    || s.results.find(x => k2(x.matched_term).startsWith(k2(name)) && /species|hybrid|genus/.test(x.rank) && !/ × /.test(x.matched_term || '')));
   if (!t) return null;
   const d = await getJSON(`https://api.inaturalist.org/v1/taxa/${t.id}`);
   await sleep(1100);

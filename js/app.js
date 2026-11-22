@@ -71,7 +71,7 @@ const SAFETY = `<div class="alert danger"><strong>Règle d'or de la cueillette</
 /* ---------- Photos de référence (iNaturalist / Wikimedia Commons, licences libres) ---------- */
 const PH = window.PHOTOS || {};
 function latinNames(latin) {
-  return String(latin || '').replace(/\(.*?\)/g, '').split(/,| et | ou |\//).map(s => s.trim())
+  return String(latin || '').replace(/×\s*/g, '').replace(/\(.*?\)/g, '').split(/,| et | ou |\//).map(s => s.trim())
     .map(s => s.replace(/\b(spp?|subsp|var|cf)\.?.*$/i, '').replace(/['"‘’].*$/, '').trim())
     .filter(Boolean).map(s => s.split(/\s+/).slice(0, 2).join(' ')).filter(s => /^[A-Z][a-z-]+( [a-z-]+)?$/.test(s));
 }
@@ -514,7 +514,7 @@ async function identifier() {
   ${key ? '' : `<div class="alert warn"><strong>Clé Pl@ntNet à configurer (une seule fois, gratuit)</strong>
     <ol style="margin:.4em 0 .6em;padding-left:1.2em"><li>Créez un compte sur <a href="https://my.plantnet.org" target="_blank" rel="noopener">my.plantnet.org</a>.</li>
     <li>Dans « API key » (réglages du compte), générez votre clé.</li>
-    <li>Cochez « Expose my API key » et ajoutez dans « Authorized domains » : <code>aliciaarnd-ui.github.io</code> et <code>localhost</code> (une ligne chacun).</li>
+    <li>Cochez « Expose my API key » et ajoutez dans « Authorized domains », une adresse par ligne, protocole compris : <code>https://aliciaarnd-ui.github.io</code> (site), <code>https://localhost</code> (appli Android) et <code>http://localhost:8765</code> (test sur PC).</li>
     <li>Collez la clé ci-dessous. Elle reste sur cet appareil.</li></ol>
     <div class="row"><input type="text" id="pnkey" placeholder="Votre clé Pl@ntNet" style="flex:1;min-width:200px"><button class="btn primary" id="pnsave">Enregistrer la clé</button></div></div>`}
   <div class="filters">
@@ -972,7 +972,7 @@ async function reglages() {
   <div class="card"><h3>Mon climat</h3><p class="small muted">Sert au calendrier des aromatiques et aux plantes sauvages de votre région.</p>
     <select id="clim">${Object.entries(CLIMATS).map(([k, v]) => `<option value="${k}" ${k === settings.get('climat') ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
   <div class="card" style="margin-top:14px"><h3>Identification par photo (Pl@ntNet)</h3>
-    <p class="small muted">Votre clé personnelle, gardée sur cet appareil uniquement. Création gratuite sur <a href="https://my.plantnet.org" target="_blank" rel="noopener">my.plantnet.org</a> (cocher « Expose my API key », domaines autorisés : aliciaarnd-ui.github.io et localhost).</p>
+    <p class="small muted">Votre clé personnelle, gardée sur cet appareil uniquement. Création gratuite sur <a href="https://my.plantnet.org" target="_blank" rel="noopener">my.plantnet.org</a> (cocher « Expose my API key », domaines autorisés, une ligne chacun : https://aliciaarnd-ui.github.io, https://localhost et http://localhost:8765).</p>
     <div class="row"><input type="text" id="pnk" value="${esc(settings.get('plantnetKey') || '')}" placeholder="Clé Pl@ntNet" style="flex:1;min-width:200px"><button class="btn" id="pnks">Enregistrer</button></div></div>
   <div class="card" style="margin-top:14px"><h3>Sauvegarde</h3>
     <p>${plants.length} plante(s) et ${photos.length} photo(s) enregistrées sur cet appareil uniquement. Exportez régulièrement un fichier de sauvegarde, il permet aussi de passer d'un appareil à l'autre.</p>

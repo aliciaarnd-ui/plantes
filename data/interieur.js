@@ -348,7 +348,7 @@
     ],
     toxicite: "non toxique pour chats et chiens.",
     astuces: ["Elle préfère une pièce stable à 20 °C sans courants d'air."],
-    sources: [W("Goeppertia orbifolia", "Goeppertia_orbifolia"), A("Calathea", "calathea"), R.guide]
+    sources: [{ titre: "Wikipedia (en) : Goeppertia orbifolia", url: "https://en.wikipedia.org/wiki/Goeppertia_orbifolia" }, A("Calathea", "calathea"), R.guide]
   },
   {
     id: "maranta", nom: "Maranta", latin: "Maranta leuconeura",
@@ -1034,7 +1034,7 @@
     ],
     toxicite: "toxique pour chats et chiens (oxalates de calcium : irritation buccale, vomissements).",
     astuces: ["Supporte très bien une taille sévère pour rajeunir un sujet dégarni."],
-    sources: [W("Schefflera arboricola", "Schefflera_arboricola"), A("Schefflera", "schefflera"), R.scale]
+    sources: [{ titre: "Wikipedia (en) : Heptapleurum arboricola", url: "https://en.wikipedia.org/wiki/Schefflera_arboricola" }, A("Schefflera", "schefflera"), R.scale]
   },
   {
     id: "begonia-maculata", nom: "Bégonia maculata", latin: "Begonia maculata",
