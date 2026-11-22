@@ -68,15 +68,55 @@ const DANGER = { mortel: ['Mortelle', 'b-danger'], toxique: ['Toxique', 'b-dange
 const badge = (pair) => pair ? `<span class="badge ${pair[1]}">${esc(pair[0])}</span>` : '';
 const SAFETY = `<div class="alert danger"><strong>Règle d'or de la cueillette</strong>Ne consommez jamais une plante sur la seule foi d'une application ou d'une photo. Au moindre doute, on ne cueille pas. Vérifiez chaque critère sur la plante entière, idéalement avec un guide ou une sortie botanique encadrée. En cas d'ingestion suspecte : centre antipoison ou 15.</div>`;
 
+/* ---------- Photos de référence (iNaturalist / Wikimedia Commons, licences libres) ---------- */
+const PH = window.PHOTOS || {};
+function latinNames(latin) {
+  return String(latin || '').replace(/\(.*?\)/g, '').split(/,| et | ou |\//).map(s => s.trim())
+    .map(s => s.replace(/\b(spp?|subsp|var|cf)\.?.*$/i, '').replace(/['"‘’].*$/, '').trim())
+    .filter(Boolean).map(s => s.split(/\s+/).slice(0, 2).join(' ')).filter(s => /^[A-Z][a-z-]+( [a-z-]+)?$/.test(s));
+}
+function photosOf(latin) {
+  for (const n of latinNames(latin)) { const r = PH[n.toLowerCase()]; if (r && arr(r.photos).length) return r.photos; }
+  return [];
+}
+const GAL = {};
+function cover(latin) {
+  const p = photosOf(latin)[0];
+  return p ? `<img class="cover" src="${esc(p.u)}" alt="" loading="lazy" onerror="this.remove()">` : '';
+}
+function gallery(latin, title, max = 5) {
+  const ps = photosOf(latin).slice(0, max); if (!ps.length) return '';
+  const id = 'g' + Object.keys(GAL).length; GAL[id] = { ps, title };
+  return `<div class="gallery">${ps.map((p, i) => `<button class="gal" data-gal="${id}" data-i="${i}" title="Agrandir"><img src="${esc(p.u)}" alt="${esc(title)}" loading="lazy" onerror="this.parentNode.remove()"></button>`).join('')}</div>`;
+}
+function lightbox(id, i) {
+  const g = GAL[id]; if (!g) return;
+  const show = () => {
+    const p = g.ps[i];
+    box.querySelector('.lb-img').src = p.u.replace('/medium.', '/large.');
+    box.querySelector('.lb-img').onerror = function () { if (this.src !== p.u) this.src = p.u; };
+    box.querySelector('.lb-cap').innerHTML = `${esc(g.title)}, photo ${i + 1}/${g.ps.length}. ${esc(p.a || '')}${p.s ? ` <a href="${esc(p.s)}" target="_blank" rel="noopener">source</a>` : ''}`;
+  };
+  const box = openModal(`<div class="lb"><img class="lb-img" alt=""><div class="row" style="margin-top:10px"><button class="btn" data-lb="-1">&larr; Précédente</button><button class="btn" data-lb="1">Suivante &rarr;</button><span class="small muted lb-cap" style="flex:1"></span></div></div>`);
+  box.addEventListener('click', e => { const b = e.target.closest('[data-lb]'); if (b) { i = (i + Number(b.dataset.lb) + g.ps.length) % g.ps.length; show(); } });
+  box._keys = e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { i = (i + (e.key === 'ArrowRight' ? 1 : -1) + g.ps.length) % g.ps.length; show(); } };
+  document.addEventListener('keydown', box._keys);
+  const obs = new MutationObserver(() => { if (!document.body.contains(box)) { document.removeEventListener('keydown', box._keys); obs.disconnect(); } });
+  obs.observe($('#modal'), { childList: true });
+  show();
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-gal]'); if (b) { e.preventDefault(); lightbox(b.dataset.gal, Number(b.dataset.i)); } });
+const credits = latin => { const ps = photosOf(latin); return ps.length ? `<p class="small muted">Photos : ${esc([...new Set(ps.map(p => String(p.a || '').replace(/^\(c\)\s*/i, '').replace(/,? ?(some|all|no) rights reserved.*$/i, '').trim()))].join(', '))} (cliquez pour agrandir).</p>` : ''; };
+
 /* ---------- Routeur ---------- */
 const routes = {
-  '': home, nature, aromatiques, interieur, 'mes-plantes': mesPlantes, diagnostic, astuces, reglages,
+  '': home, nature, aromatiques, interieur, identifier, 'mes-plantes': mesPlantes, diagnostic, astuces, reglages,
 };
 function router() {
   const parts = location.hash.replace(/^#\/?/, '').split('?')[0].split('/').map(decodeURIComponent);
   const [r, id, ...rest] = parts;
   $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === (r || '')));
-  closeModal();
+  closeModal(); Object.keys(GAL).forEach(k => delete GAL[k]);
   const fn = routes[r || ''] || home;
   Promise.resolve(fn(id, rest)).catch(err => { console.error(err); app.innerHTML = `<div class="alert danger"><strong>Erreur</strong>${esc(err.message)}</div>`; });
   window.scrollTo(0, 0);
@@ -193,7 +233,7 @@ function nature(id) {
       (!fN.statut || String(p.statut || '').includes(fN.statut)));
     $('#ncount').textContent = `${res.length} plante${res.length > 1 ? 's' : ''}`;
     $('#nlist').innerHTML = res.map(p => `
-      <a class="card" href="#/nature/${esc(p.id)}"><h3>${esc(p.nom)}</h3><div class="latin">${esc(p.latin)}</div>
+      <a class="card" href="#/nature/${esc(p.id)}">${cover(p.latin)}<h3>${esc(p.nom)}</h3><div class="latin">${esc(p.latin)}</div>
         <p>${esc(p.resume || '')}</p>
         <div class="badges">${badge(STATUT[p.statut])}${arr(p.confusions).some(c => c.danger === 'mortel') ? '<span class="badge b-danger">Sosie mortel</span>' : ''}</div>
       </a>`).join('') || '<p class="empty">Aucune plante ne correspond.</p>';
@@ -210,6 +250,7 @@ function natureDetail(id) {
   <div class="fiche-head"><h1>${esc(p.nom)}</h1><span class="latin">${esc(p.latin)}${p.famille ? ', ' + esc(p.famille) : ''}</span></div>
   <div class="badges">${badge(STATUT[p.statut])}${arr(p.autresNoms).map(n => `<span class="badge">${esc(n)}</span>`).join('')}</div>
   <p class="lead" style="margin-top:12px">${esc(p.resume || '')}</p>
+  ${gallery(p.latin, p.nom)}${credits(p.latin)}
   <div class="two">
     <div>
       <h2>La reconnaître</h2>
@@ -217,8 +258,8 @@ function natureDetail(id) {
       ${list(p.reconnaissance)}
       ${conf.length ? `<h2>Ne pas confondre avec</h2>${conf.map(c => `
         <div class="confusion">
-          <div class="ch"><div><strong>${esc(p.nom)}</strong><div class="small">${esc(STATUT[p.statut] ? STATUT[p.statut][0] : '')}</div></div>
-          <div class="${c.danger === 'sans-danger' ? 'safe' : ''}"><strong>${esc(c.nom)}</strong> <span class="latin">${esc(c.latin || '')}</span><div>${badge(DANGER[c.danger])}</div></div></div>
+          <div class="ch"><div>${gallery(p.latin, p.nom, 2)}<strong>${esc(p.nom)}</strong><div class="small">${esc(STATUT[p.statut] ? STATUT[p.statut][0] : '')}</div></div>
+          <div class="${c.danger === 'sans-danger' ? 'safe' : ''}">${gallery(c.latin, c.nom, 2) || '<p class="small muted">Pas de photo disponible</p>'}<strong>${esc(c.nom)}</strong> <span class="latin">${esc(c.latin || '')}</span><div>${badge(DANGER[c.danger])}</div></div></div>
           <div class="cb"><strong class="small">Comment les distinguer</strong>${list(c.differences)}</div>
         </div>`).join('')}` : ''}
       <h2>Utilisation</h2>
@@ -253,7 +294,7 @@ function natureToxiques() {
   <h1>Les sosies toxiques</h1>
   <p class="lead">Les plantes dangereuses qui ressemblent à des plantes comestibles. Apprenez à les reconnaître en premier : c'est la base de toute cueillette.</p>
   ${SAFETY}
-  <div class="grid wide">${t.map(x => `<div class="card"><h3>${esc(x.nom)}</h3><div class="latin">${esc(x.latin || '')}</div><div class="badges">${badge(DANGER[x.danger])}</div>
+  <div class="grid wide">${t.map(x => `<div class="card">${gallery(x.latin, x.nom, 3)}<h3>${esc(x.nom)}</h3><div class="latin">${esc(x.latin || '')}</div><div class="badges">${badge(DANGER[x.danger])}</div>
     <p>Ressemble à : ${x.avec.map(a => `<a href="#/nature/${esc(a.p.id)}">${esc(a.p.nom)}</a>`).join(', ')}</p>
     ${list(x.avec[0].c.differences.slice ? x.avec[0].c.differences.slice(0, 3) : [])}</div>`).join('')}</div>`;
 }
@@ -296,7 +337,7 @@ function aromatiques(id) {
       $('#alist').innerHTML = `<p class="small muted">${res.length} plante${res.length > 1 ? 's' : ''}</p><div class="grid">${res.map(p => {
         const tags = [];
         if (m) { if (arr(p.semisAbri).map(Number).includes(m)) tags.push(['Semis abri', 'b-blue']); if (arr(p.semisPleineTerre).map(Number).includes(m)) tags.push(['Semis pleine terre', 'b-green']); if (arr(p.plantation).map(Number).includes(m)) tags.push(['Plantation', 'b-gold']); if (arr(p.recolte).map(Number).includes(m)) tags.push(['Récolte', 'b-terra']); }
-        return `<a class="card" href="#/aromatiques/${esc(p.id)}"><h3>${esc(p.nom)}</h3><div class="latin">${esc(p.latin)}</div><p>${esc(p.resume || '')}</p>
+        return `<a class="card" href="#/aromatiques/${esc(p.id)}">${cover(p.latin)}<h3>${esc(p.nom)}</h3><div class="latin">${esc(p.latin)}</div><p>${esc(p.resume || '')}</p>
         <div class="badges">${tags.map(badge).join('')}<span class="badge">${esc(p.cycle || '')}</span><span class="badge">${esc(p.exposition || '')}</span>${p.enInterieur ? '<span class="badge b-blue">Intérieur possible</span>' : ''}</div></a>`;
       }).join('') || '<p class="empty">Aucune plante ne correspond.</p>'}</div>`;
     }
@@ -316,6 +357,7 @@ function aromatiqueDetail(id) {
   <div class="fiche-head"><h1>${esc(p.nom)}</h1><span class="latin">${esc(p.latin)}${p.famille ? ', ' + esc(p.famille) : ''}</span></div>
   <div class="badges"><span class="badge">${esc(p.cycle || '')}</span><span class="badge">${esc(p.exposition || '')}</span>${p.enPot ? '<span class="badge b-green">En pot</span>' : ''}${p.enInterieur ? '<span class="badge b-blue">Intérieur possible</span>' : ''}</div>
   <p class="lead" style="margin-top:12px">${esc(p.resume || '')}</p>
+  ${gallery(p.latin, p.nom)}${credits(p.latin)}
   <div class="two">
     <div>
       <div class="card">
@@ -397,7 +439,7 @@ function interieur(id) {
     const n = norm(fI.q);
     const res = INT.filter(p => (!n || norm([p.nom, p.latin, ...arr(p.autresNoms)].join(' ')).includes(n)) &&
       (!fI.lum || (p.lumiere && p.lumiere.niveau === fI.lum)) && (!fI.dif || p.difficulte === fI.dif));
-    $('#ilist').innerHTML = res.map(p => `<a class="card" href="#/interieur/${esc(p.id)}"><h3>${esc(p.nom)}</h3><div class="latin">${esc(p.latin)}</div><p>${esc(p.resume || '')}</p>
+    $('#ilist').innerHTML = res.map(p => `<a class="card" href="#/interieur/${esc(p.id)}">${cover(p.latin)}<h3>${esc(p.nom)}</h3><div class="latin">${esc(p.latin)}</div><p>${esc(p.resume || '')}</p>
       <div class="badges"><span class="badge b-gold">${esc(LUM_L[p.lumiere && p.lumiere.niveau] || '')}</span><span class="badge">${esc(p.difficulte || '')}</span>${p.arrosage ? `<span class="badge b-blue">eau ~${esc(p.arrosage.joursEte)} j / ${esc(p.arrosage.joursHiver)} j</span>` : ''}</div></a>`).join('') || '<p class="empty">Aucune plante ne correspond.</p>';
   };
   $$('#iq,#ilum,#idif').forEach(el => el.addEventListener('input', upd));
@@ -438,12 +480,123 @@ function interieurDetail(id) {
   <div class="fiche-head"><h1>${esc(p.nom)}</h1><span class="latin">${esc(p.latin)}${p.famille ? ', ' + esc(p.famille) : ''}</span><span class="spacer"></span><button class="btn primary" id="addmine">Ajouter à mes plantes</button></div>
   <div class="badges"><span class="badge">${esc(p.difficulte || '')}</span>${arr(p.autresNoms).map(n => `<span class="badge">${esc(n)}</span>`).join('')}</div>
   <p class="lead" style="margin-top:12px">${esc(p.resume || '')}</p>
+  ${gallery(p.latin, p.nom)}${credits(p.latin)}
   ${p.toxicite ? `<div class="alert warn"><strong>Toxicité</strong>${esc(p.toxicite)}</div>` : ''}
   ${speciesCare(p)}
   ${speciesSymptoms(p)}
   ${arr(p.astuces).length ? `<h2>Astuces</h2>${list(p.astuces)}` : ''}
   ${sources(p.sources)}`;
   $('#addmine').addEventListener('click', () => plantForm(null, p.id));
+}
+
+/* ---------- Identification par photo (Pl@ntNet, clé personnelle gardée sur l'appareil) ---------- */
+const genusOf = n => String(n || '').split(' ')[0].toLowerCase();
+function namesOf(p) { return [...latinNames(p.latin), ...arr(p.synonymes).flatMap(latinNames)].map(x => x.toLowerCase()); }
+function matchFiches(latin) {
+  const k = latinNames(latin)[0] ? latinNames(latin)[0].toLowerCase() : String(latin).toLowerCase(); const g = genusOf(k);
+  const exact = list => list.filter(p => namesOf(p).includes(k));
+  const sameGenus = list => list.filter(p => !namesOf(p).includes(k) && namesOf(p).some(x => genusOf(x) === g));
+  return {
+    int: exact(INT), intGenre: sameGenus(INT), sauv: exact(SAUV), sauvGenre: sameGenus(SAUV), aro: exact(ARO),
+    tox: toxicList().filter(t => latinNames(t.latin).map(x => x.toLowerCase()).includes(k)),
+  };
+}
+function bestInterior(latin) { const m = matchFiches(latin); return m.int[0] ? { sp: m.int[0], exact: true } : m.intGenre[0] ? { sp: m.intGenre[0], exact: false } : null; }
+const ORGANES = { auto: 'Je ne sais pas', leaf: 'Feuille', flower: 'Fleur', fruit: 'Fruit', bark: 'Écorce / tige' };
+const ID = { photos: [], mode: 'maison', results: null };
+async function identifier() {
+  const qs = new URLSearchParams(location.hash.split('?')[1] || '');
+  if (qs.get('mode')) ID.mode = qs.get('mode');
+  const key = settings.get('plantnetKey');
+  app.innerHTML = `
+  <h1>Identifier une plante</h1>
+  <p class="lead">Prenez une ou plusieurs photos de la même plante. L'identification est faite par Pl@ntNet, puis l'appli relie le résultat à ses fiches : soins pour une plante de la maison, usages et sosies pour une plante sauvage.</p>
+  ${key ? '' : `<div class="alert warn"><strong>Clé Pl@ntNet à configurer (une seule fois, gratuit)</strong>
+    <ol style="margin:.4em 0 .6em;padding-left:1.2em"><li>Créez un compte sur <a href="https://my.plantnet.org" target="_blank" rel="noopener">my.plantnet.org</a>.</li>
+    <li>Dans « API key » (réglages du compte), générez votre clé.</li>
+    <li>Cochez « Expose my API key » et ajoutez dans « Authorized domains » : <code>aliciaarnd-ui.github.io</code> et <code>localhost</code> (une ligne chacun).</li>
+    <li>Collez la clé ci-dessous. Elle reste sur cet appareil.</li></ol>
+    <div class="row"><input type="text" id="pnkey" placeholder="Votre clé Pl@ntNet" style="flex:1;min-width:200px"><button class="btn primary" id="pnsave">Enregistrer la clé</button></div></div>`}
+  <div class="filters">
+    <div class="field">Cette plante est<div class="chips"><button class="chip ${ID.mode === 'maison' ? 'on' : ''}" data-m="maison">Chez moi (plante d'intérieur, balcon)</button><button class="chip ${ID.mode === 'dehors' ? 'on' : ''}" data-m="dehors">Dehors (nature, jardin)</button></div></div>
+  </div>
+  <div class="row"><label class="btn primary" style="cursor:pointer">Prendre ou choisir des photos<input type="file" accept="image/*" multiple id="idfile" hidden></label>
+    <span class="small muted">Jusqu'à 5 photos. Le mieux : une fleur ou un fruit, puis une feuille bien nette, en gros plan.</span></div>
+  <div class="idphotos" id="idph" style="margin-top:12px"></div>
+  <div class="row" style="margin-top:12px"><button class="btn primary" id="idgo" ${ID.photos.length ? '' : 'disabled'}>Identifier</button><button class="btn" id="idclear" ${ID.photos.length ? '' : 'disabled'}>Recommencer</button></div>
+  <div id="idres" style="margin-top:18px"></div>`;
+  $('#idph').innerHTML = ID.photos.map((p, i) => `<div><img src="${p.url}" alt=""><select data-org="${i}" style="width:100%;margin-top:4px">${Object.entries(ORGANES).map(([k, v]) => `<option value="${k}" ${p.organ === k ? 'selected' : ''}>${v}</option>`).join('')}</select><button class="btn sm" data-rm="${i}" style="margin-top:4px">Retirer</button></div>`).join('');
+  $$('[data-org]').forEach(s => s.addEventListener('change', () => { ID.photos[s.dataset.org].organ = s.value; }));
+  $$('[data-rm]').forEach(b => b.addEventListener('click', () => { ID.photos.splice(Number(b.dataset.rm), 1); ID.results = null; identifier(); }));
+  if (ID.results) renderIdResults();
+  const ks = $('#pnsave'); if (ks) ks.addEventListener('click', () => { const v = $('#pnkey').value.trim(); if (v) { settings.set('plantnetKey', v); toast('Clé enregistrée'); identifier(); } });
+  $$('[data-m]').forEach(b => b.addEventListener('click', () => { ID.mode = b.dataset.m; $$('[data-m]').forEach(x => x.classList.toggle('on', x === b)); if (ID.results) renderIdResults(); }));
+  $('#idfile').addEventListener('change', async e => {
+    for (const f of Array.from(e.target.files).slice(0, 5 - ID.photos.length)) {
+      try { const blob = await compress(f, 1600); ID.photos.push({ blob, url: URL.createObjectURL(blob), organ: 'auto' }); } catch (err) { toast('Image illisible'); }
+    }
+    ID.results = null; identifier();
+  });
+  $('#idclear').addEventListener('click', () => { ID.photos = []; ID.results = null; identifier(); });
+  $('#idgo').addEventListener('click', async () => {
+    const k = settings.get('plantnetKey');
+    if (!k) { toast('Configurez d\'abord votre clé Pl@ntNet'); return; }
+    const btn = $('#idgo'); btn.disabled = true; btn.textContent = 'Identification...';
+    try {
+      const fd = new FormData();
+      ID.photos.forEach((p, i) => { fd.append('organs', p.organ); fd.append('images', p.blob, `photo${i + 1}.jpg`); });
+      const r = await fetch(`https://my-api.plantnet.org/v2/identify/all?api-key=${encodeURIComponent(k)}&lang=fr&include-related-images=true&nb-results=6`, { method: 'POST', body: fd });
+      if (r.status === 404) ID.results = { results: [] };
+      else if (r.status === 401 || r.status === 403) throw new Error('clé refusée ou domaine non autorisé : vérifiez la clé et les domaines autorisés sur my.plantnet.org');
+      else if (r.status === 429) throw new Error('quota du jour atteint (500 identifications), réessayez demain');
+      else if (!r.ok) throw new Error('erreur du service (' + r.status + ')');
+      else ID.results = await r.json();
+      renderIdResults();
+    } catch (err) {
+      $('#idres').innerHTML = `<div class="alert danger"><strong>Identification impossible</strong>${esc(err.message === 'Failed to fetch' ? 'pas de connexion, ou domaine non autorisé pour la clé Pl@ntNet' : err.message)}</div>`;
+    } finally { btn.disabled = false; btn.textContent = 'Identifier'; }
+  });
+}
+function renderIdResults() {
+  const out = $('#idres'); if (!out) return;
+  const res = arr(ID.results && ID.results.results);
+  if (!res.length) { out.innerHTML = '<div class="alert warn"><strong>Aucune plante reconnue</strong>Essayez une photo plus nette, en gros plan, d\'une fleur ou d\'une feuille, sur un fond simple.</div>'; return; }
+  const top = res[0].score;
+  out.innerHTML = `<h2>Résultats</h2>
+  ${top < 0.25 ? '<div class="alert warn"><strong>Résultat incertain</strong>Aucune espèce ne se détache vraiment. Ajoutez une photo de fleur, de fruit ou de feuille plus nette.</div>' : ''}
+  ${ID.mode === 'dehors' ? SAFETY : ''}
+  <div class="result">${res.map((r, i) => {
+    const sp = r.species || {}; const latin = sp.scientificNameWithoutAuthor || ''; const m = matchFiches(latin);
+    const fr = arr(sp.commonNames)[0] || ''; const imgs = arr(r.images).slice(0, 4);
+    const gid = 'id' + i; GAL[gid] = { ps: imgs.map(x => ({ u: (x.url && (x.url.m || x.url.s)) || '', a: `${x.author || ''}, ${x.license || ''} (Pl@ntNet)` })), title: fr || latin };
+    const bi = bestInterior(latin);
+    const links = [];
+    m.sauv.forEach(p => links.push(`<a class="btn sm" href="#/nature/${esc(p.id)}">Fiche nature : ${esc(p.nom)}</a>`));
+    m.aro.forEach(p => links.push(`<a class="btn sm" href="#/aromatiques/${esc(p.id)}">Fiche aromatique : ${esc(p.nom)}</a>`));
+    if (bi) links.push(`<a class="btn sm" href="#/interieur/${esc(bi.sp.id)}">${bi.exact ? 'Fiche' : 'Fiche du même genre'} : ${esc(bi.sp.nom)}</a>`);
+    return `<div class="card">
+      <div class="row"><span class="score ${r.score < 0.25 ? 'low' : ''}">${Math.round(r.score * 100)} %</span><div style="flex:1"><h3 style="margin:0">${esc(fr || latin)}</h3><div class="latin">${esc(latin)}${sp.family ? ', ' + esc(sp.family.scientificNameWithoutAuthor || '') : ''}</div>${arr(sp.commonNames).length > 1 ? `<div class="small muted">${esc(arr(sp.commonNames).slice(1, 4).join(', '))}</div>` : ''}</div></div>
+      ${imgs.length ? `<div class="gallery">${GAL[gid].ps.map((p, j) => `<button class="gal" data-gal="${gid}" data-i="${j}"><img src="${esc(p.u)}" alt="" loading="lazy" onerror="this.parentNode.remove()"></button>`).join('')}</div><p class="small muted">Photos de référence Pl@ntNet : comparez avec votre plante.</p>` : ''}
+      ${m.tox.length ? `<div class="alert danger"><strong>Plante toxique${m.tox[0].danger === 'mortel' ? ' (mortelle)' : ''}</strong>Sosie de : ${m.tox[0].avec.map(a => esc(a.p.nom)).join(', ')}. Ne pas consommer.</div>` : ''}
+      ${!m.sauv.length && m.sauvGenre.length && ID.mode === 'dehors' ? `<div class="alert warn"><strong>Même genre que ${m.sauvGenre.map(p => esc(p.nom)).join(', ')}</strong>Ce n'est pas la même espèce : ne vous fiez pas à la fiche pour la consommer.</div>` : ''}
+      <div class="row">${links.join('')}${ID.mode === 'maison' ? `<button class="btn primary sm" data-adopt="${i}">C'est elle : l'ajouter à mes plantes</button>` : ''}</div>
+      ${ID.mode === 'maison' && !bi ? '<p class="small muted">Pas encore de fiche soins pour cette espèce : l\'appli appliquera des conseils généraux, à ajuster.</p>' : ''}
+    </div>`;
+  }).join('')}</div>
+  <p class="small muted">Identification : Pl@ntNet ${esc(ID.results.version || '')}. Il reste ${esc(ID.results.remainingIdentificationRequests ?? '?')} identifications aujourd'hui.</p>`;
+  $$('[data-adopt]', out).forEach(b => b.addEventListener('click', () => adopt(res[Number(b.dataset.adopt)])));
+}
+async function adopt(r) {
+  const sp = r.species || {}; const latin = sp.scientificNameWithoutAuthor || ''; const fr = arr(sp.commonNames)[0] || '';
+  const bi = bestInterior(latin);
+  const id = uid();
+  const pl = { id, nom: (bi && bi.exact ? bi.sp.nom : fr) || latin, especeId: bi ? bi.sp.id : '', especeLibre: bi && bi.exact ? '' : `${fr ? fr + ', ' : ''}${latin}`, latinIdentifie: latin, expo: 'est', dist: 'moyen', cree: today(), journal: [{ id: uid(), type: 'note', date: today(), texte: `Identifiée par photo : ${latin} (${Math.round(r.score * 100)} %)` }] };
+  await DB.put('plants', pl);
+  for (const p of ID.photos) await DB.put('photos', { id: uid(), plantId: id, date: today(), blob: p.blob, markers: [], note: '' });
+  ID.photos = []; ID.results = null;
+  toast('Plante ajoutée : indiquez sa pièce et sa fenêtre');
+  location.hash = '#/mes-plantes/' + id;
+  setTimeout(() => plantForm(id), 400);
 }
 
 /* ---------- Mes plantes ---------- */
@@ -470,7 +623,7 @@ async function mesPlantes(id) {
     .sort((a, b) => (a.st.days ?? -99) - (b.st.days ?? -99));
   const rooms = [...new Set(plants.map(x => x.p.piece || 'Sans pièce'))];
   app.innerHTML = `
-  <div class="row"><h1>Mes plantes</h1><span class="spacer"></span><button class="btn primary" id="addp">Ajouter une plante</button></div>
+  <div class="row"><h1>Mes plantes</h1><span class="spacer"></span><a class="btn primary" href="#/identifier?mode=maison">Ajouter par photo</a><button class="btn" id="addp">Ajouter sans photo</button></div>
   <p class="lead">Le rythme d'arrosage est indicatif : on contrôle toujours la terre avant d'arroser. Vos données et photos restent sur cet appareil (pensez à la sauvegarde dans Réglages).</p>
   ${plants.length ? rooms.map(r => `<h2>${esc(r)}</h2><div class="grid wide">${plants.filter(x => (x.p.piece || 'Sans pièce') === r).map(({ p, st }) => `
     <div class="card plant-card">
@@ -620,6 +773,8 @@ async function plantDetail(id) {
   app.innerHTML = `
   <a class="back" href="#/mes-plantes">&larr; Mes plantes</a>
   <div class="fiche-head"><h1>${esc(pl.nom)}</h1><span class="latin">${sp ? `<a href="#/interieur/${esc(sp.id)}">${esc(sp.nom)}</a>` : esc(pl.especeLibre || 'espèce non précisée')}${pl.piece ? ', ' + esc(pl.piece) : ''}</span><span class="spacer"></span><button class="btn sm" id="edit">Modifier</button></div>
+  ${pl.latinIdentifie ? `<p class="small muted">Identifiée par photo : <em>${esc(pl.latinIdentifie)}</em>${sp && !namesOf(sp).includes(pl.latinIdentifie.toLowerCase()) ? `. Pas de fiche pour cette espèce exacte : conseils de la fiche du même genre (${esc(sp.nom)}), à ajuster selon ce que vous observez.` : ''}</p>` : ''}
+  ${!sp ? '<div class="alert info"><strong>Pas de fiche soins associée</strong>Rythme d’arrosage par défaut (7 jours en été, 14 en hiver) : contrôlez toujours la terre avant d’arroser. Choisissez une espèce proche via Modifier, ou identifiez-la par photo.</div>' : ''}
   <div class="two" style="margin-top:12px">
     <div>
       <div class="card">
@@ -816,6 +971,9 @@ async function reglages() {
   app.innerHTML = `<h1>Réglages</h1>
   <div class="card"><h3>Mon climat</h3><p class="small muted">Sert au calendrier des aromatiques et aux plantes sauvages de votre région.</p>
     <select id="clim">${Object.entries(CLIMATS).map(([k, v]) => `<option value="${k}" ${k === settings.get('climat') ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+  <div class="card" style="margin-top:14px"><h3>Identification par photo (Pl@ntNet)</h3>
+    <p class="small muted">Votre clé personnelle, gardée sur cet appareil uniquement. Création gratuite sur <a href="https://my.plantnet.org" target="_blank" rel="noopener">my.plantnet.org</a> (cocher « Expose my API key », domaines autorisés : aliciaarnd-ui.github.io et localhost).</p>
+    <div class="row"><input type="text" id="pnk" value="${esc(settings.get('plantnetKey') || '')}" placeholder="Clé Pl@ntNet" style="flex:1;min-width:200px"><button class="btn" id="pnks">Enregistrer</button></div></div>
   <div class="card" style="margin-top:14px"><h3>Sauvegarde</h3>
     <p>${plants.length} plante(s) et ${photos.length} photo(s) enregistrées sur cet appareil uniquement. Exportez régulièrement un fichier de sauvegarde, il permet aussi de passer d'un appareil à l'autre.</p>
     ${NATIVE ? '<p class="small muted">L\'export ouvre le menu de partage : enregistrez le fichier dans Drive, Fichiers ou envoyez-le vous par mail.</p>' : ''}
@@ -823,6 +981,7 @@ async function reglages() {
   ${NATIVE ? '' : `<div class="card" style="margin-top:14px"><h3>Sur téléphone</h3><p>Application Android : <a href="${APK_URL}">télécharger herbier.apk</a>, l'ouvrir puis autoriser l'installation depuis le navigateur. Sur iPhone : ouvrir ce site dans Safari, Partager, puis « Sur l'écran d'accueil ».</p><p class="small muted">L'appli et le site ont chacun leurs propres données : passez de l'un à l'autre avec Exporter puis Importer.</p></div>`}
   <div class="card" style="margin-top:14px"><h3>À propos des données</h3><p class="small">Fiches rédigées à partir de sources botaniques, d'herboristerie et de jardinage (citées en bas de chaque fiche). Elles ne remplacent ni un avis médical, ni la vérification sur le terrain par une personne compétente.</p>
     <p class="small muted">${SAUV.length} plantes sauvages, ${ARO.length} aromatiques, ${INT.length} plantes d'intérieur, ${AST.length} astuces, ${SYM.length} symptômes.</p></div>`;
+  $('#pnks').addEventListener('click', () => { settings.set('plantnetKey', $('#pnk').value.trim()); toast('Clé enregistrée'); });
   $('#clim').addEventListener('change', e => { settings.set('climat', e.target.value); toast('Climat enregistré'); });
   $('#exp').addEventListener('click', async () => {
     const data = { app: 'herbier', version: 1, date: new Date().toISOString(), plants: await DB.all('plants'), photos: [] };
